@@ -2,9 +2,9 @@ import random
 from fastapi import FastAPI
 from enum import Enum
 from pydantic import BaseModel
-from typing import Annotated, Any
-from fastapi import FastAPI, Query, Path
-from pydantic import AfterValidator
+from typing import Annotated, Any, Literal
+from fastapi import FastAPI, Query, Path, Body
+from pydantic import AfterValidator, Field
 
 app = FastAPI()
 
@@ -21,6 +21,15 @@ class Item(BaseModel):
     description: str | None = None
     price: float
     tax: float | None = None
+
+
+class FilterParams(BaseModel):
+    model_config = {"extra": "forbid"} # doesnt allow to keep any other query except for these filterParams class
+
+    limit: int = Field(100, gt=0, le=100) #field(default, aru)
+    offset: int = Field(0, ge=0)
+    order_by: Literal["created_at", "updated_at"] = "created_at" # While a regular type hint like str allows any text string, Literal["read", "write"] forces the value to be "literally" either "read" or "write".
+    tags: list[str] = []
 
 class ModelName(str, Enum):
     ramnet = "ramnet"
@@ -108,12 +117,12 @@ async def create_item(item: Item):
 
     return item_dict
 
-@app.put("/items/{item_id}")
-async def update_item(item_id: int, item: Item,  q: Annotated[str | None, Query(min_length=3, max_length=20, pattern="fixedquery$")]= None):
-    result = {"item_id": item_id, **item.model_dump()}
-    if q:
-        result.update({"q": q})
-    return result
+# @app.put("/items/{item_id}")
+# async def update_item(item_id: int, item: Item,  q: Annotated[str | None, Query(min_length=3, max_length=20, pattern="fixedquery$")]= None):
+#     result = {"item_id": item_id, **item.model_dump()}
+#     if q:
+#         result.update({"q": q})
+#     return result
 
 # query parameter q that can appear multiple times in the URL
 # @app.get("/items/")
@@ -171,11 +180,42 @@ def check_valid_id(id: str):
 #     return {"id": id, "name": item}
 
 # with ge=1, item_id will need to be an integer number "greater than or equal" to 1
-@app.get("/items/{item_id}")
-async def read_items(
-    item_id: Annotated[int, Path(title="The ID of the item to get", ge=1)], q: str
-):
-    results: dict[str, Any]  = {"item_id": item_id}
-    if q:
-        results.update({"q": q})
+# @app.get("/items/{item_id}")
+# async def read_items(
+#     item_id: Annotated[int, Path(title="The ID of the item to get", ge=1)], q: str
+# ):
+#     results: dict[str, Any]  = {"item_id": item_id}
+#     if q:
+#         results.update({"q": q})
+#     return results
+
+@app.get("/items/")
+async def read_items(filter_query: Annotated[FilterParams, Query()]):
+    return filter_query
+
+class User(BaseModel):
+    username: str 
+    full_name: str | None = None
+
+# @app.put("/items/{item_id}")
+# async def update_item(
+#     item_id: Annotated[int, Path(title="The ID of the item to get", ge=0, le=1000)],
+#     q: str | None = None,
+#     item: Item | None = None,
+# ):
+#     results: dict[str, Any] = {"item_id": item_id}
+#     if q:
+#         results.update({"q": q})
+#     if item:
+#         results.update({"item": item})
+#     return results
+
+# @app.put("/items/{item_id}")
+# async def update_item(item_id: int, item: Item, user: User, importance: Annotated[str, Body()], q: str | None):
+#     results = {"item_id": item_id, "item": item, "user": user, "importance": importance, "q": q}
+#     return results
+
+@app.put("/items/{item_id}")
+async def update_item(item_id: int, item: Annotated[Item, Body(embed=True)]):
+    results = {"item_id": item_id, "item": item}
     return results
