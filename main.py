@@ -1,8 +1,18 @@
+import random
 from fastapi import FastAPI
 from enum import Enum
 from pydantic import BaseModel
+from typing import Annotated, Any
+from fastapi import FastAPI, Query, Path
+from pydantic import AfterValidator
 
 app = FastAPI()
+
+data = {
+    "isbn-9781529046137": "The Hitchhiker's Guide to the Galaxy",
+    "imdb-tt0371724": "The Hitchhiker's Guide to the Galaxy",
+    "isbn-9781439512982": "Isaac Asimov: The Complete Stories, Vol. 2",
+}
 
 # declare your data model as a class that inherits from BaseModel
 
@@ -67,16 +77,16 @@ async def get_user_by_id(id: int):
 
 # here needy is a required query parameter, if it is not passed in url then the error will be shown.
 
-@app.get("/items/{item_id}")
-async def read_user_item(item_id: str, needy: str):
-    item = {"item_id": item_id, "needy": needy}
-    return item
+# @app.get("/items/{item_id}")
+# async def read_user_item(item_id: str, needy: str):
+#     item = {"item_id": item_id, "needy": needy}
+#     return item
 
 fake_items_db = [{"key1": "value1"}, {"key2":"value2"},{"key3": "value3"}, {"key4":"value4"}]
 
-@app.get("/items/")
-async def read_items(skip: int=0, limit: int=5):
-    return fake_items_db[skip:limit+skip]
+# @app.get("/items/")
+# async def read_items(skip: int=0, limit: int=5):
+#     return fake_items_db[skip:limit+skip]
 
 @app.get("/models/{model_name}")
 async def get_model(model_name: ModelName):
@@ -99,8 +109,73 @@ async def create_item(item: Item):
     return item_dict
 
 @app.put("/items/{item_id}")
-async def update_item(item_id: int, item: Item, q: str | None = None):
+async def update_item(item_id: int, item: Item,  q: Annotated[str | None, Query(min_length=3, max_length=20, pattern="fixedquery$")]= None):
     result = {"item_id": item_id, **item.model_dump()}
     if q:
         result.update({"q": q})
     return result
+
+# query parameter q that can appear multiple times in the URL
+# @app.get("/items/")
+# async def read_items(q: Annotated[list[str] | None, Query()] = None):
+#     query_items = {"q": q}
+#     return query_items
+
+# @app.get("/items/")
+# async def read_items(q: Annotated[list[str] | None, Query()] = ["hello", "shamir"]):
+#     query_items = {"q": q}
+#     return query_items
+
+
+# 
+# @app.get("/items/")
+# async def read_items(
+#     q: Annotated[
+#         str | None,
+#         Query(
+#             alias="item-query",
+#             title="Query string",
+#             description="Query string for the items to search in the database that have a good match",
+#             min_length=3,
+#             max_length=50,
+#             pattern="^fixedquery$",
+#             deprecated=True,
+#         ),
+#     ] = None,
+# ):
+#     results: dict[str, Any] = {"items": [{"item_id": "Foo"}, {"item_id": "Bar"}]}
+#     if q:
+#         results["q"] = q
+#     return results
+
+def check_valid_id(id: str):
+    if not id.startswith(("isbn-", "imdb-")):
+        raise ValueError('Invalid ID format, it must start with "isbn-" or "imdb-"')
+    return id
+
+# @app.get("/items/{item_id}")
+# async def read_items(
+#     item_id: Annotated[
+#         int,
+#         Path(
+#             title="id of an item",
+#             description="this should be a id of an item as item_id path paramter",
+#         ),
+#     ],
+#     id: Annotated[str | None, AfterValidator(check_valid_id)] = None
+# ):
+#     if id:
+#         item = data.get(id)
+#     else:
+#         id, item = random.choice(list(data.items()))
+#     return {"id": id, "name": item}
+
+# with ge=1, item_id will need to be an integer number "greater than or equal" to 1
+@app.get("/items/{item_id}")
+async def read_items(
+    item_id: Annotated[int, Path(title="The ID of the item to get", ge=1)], q: str
+):
+    results: dict[str, Any]  = {"item_id": item_id}
+    if q:
+        results.update({"q": q})
+    return results
