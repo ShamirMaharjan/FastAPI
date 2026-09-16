@@ -4,7 +4,9 @@ from enum import Enum
 from pydantic import BaseModel
 from typing import Annotated, Any, Literal
 from fastapi import FastAPI, Query, Path, Body
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, Field, HttpUrl
+from uuid import UUID
+from datetime import datetime, time, timedelta
 
 app = FastAPI()
 
@@ -16,11 +18,35 @@ data = {
 
 # declare your data model as a class that inherits from BaseModel
 
+class Image(BaseModel):
+    name: str
+    url: HttpUrl
+
 class Item(BaseModel):
     name: str
-    description: str | None = None
-    price: float
+    description: str | None = Field(
+        default=None,
+        description="The description of the item",
+        max_length=200,
+        examples=["A very nice Item"] # can declare example in field
+    )
+    price: float = Field(gt=0, description="The price must be greater than 0")
     tax: float | None = None
+    tags: set[str] = set()
+    image: list[Image] | None = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "Foo",
+                    "description": "A very nice Item",
+                    "price": 35.4,
+                    "tax": 3.2,
+                }
+            ]
+        }
+    }
 
 
 class FilterParams(BaseModel):
@@ -189,9 +215,9 @@ def check_valid_id(id: str):
 #         results.update({"q": q})
 #     return results
 
-@app.get("/items/")
-async def read_items(filter_query: Annotated[FilterParams, Query()]):
-    return filter_query
+# @app.get("/items/")
+# async def read_items(filter_query: Annotated[FilterParams, Query()]):
+#     return filter_query
 
 class User(BaseModel):
     username: str 
@@ -215,7 +241,47 @@ class User(BaseModel):
 #     results = {"item_id": item_id, "item": item, "user": user, "importance": importance, "q": q}
 #     return results
 
+# @app.put("/items/{item_id}")
+# async def update_item(item_id: int, item: Annotated[Item, Body(embed=True)]):
+#     results = {"item_id": item_id, "item": item}
+#     return results
+
+# @app.put("/items/{item_id}")
+# async def update_item(
+#     item_id: int,
+#     item: Annotated[
+#         Item,
+#         Body(
+#             examples=[
+#                 {
+#                     "name": "Foo",
+#                     "description": "A very nice Item",
+#                     "price": 35.4,
+#                     "tax": 3.2,
+#                 }
+#             ],
+#         ),
+#     ],
+# ):
+#     results = {"item_id": item_id, "item": item}
+#     return results
+
 @app.put("/items/{item_id}")
-async def update_item(item_id: int, item: Annotated[Item, Body(embed=True)]):
-    results = {"item_id": item_id, "item": item}
-    return results
+async def read_items(
+    item_id: UUID,
+    start_datetime: Annotated[datetime, Body()],
+    end_datetime: Annotated[datetime, Body()],
+    process_after: Annotated[timedelta, Body()],
+    repeat_at: Annotated[time | None, Body()] = None,
+):
+    start_process = start_datetime + process_after
+    duration = end_datetime - start_process
+    return {
+        "item_id": item_id,
+        "start_datetime": start_datetime,
+        "end_datetime": end_datetime,
+        "process_after": process_after,
+        "repeat_at": repeat_at,
+        "start_process": start_process,
+        "duration": duration,
+    }
