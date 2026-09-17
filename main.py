@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from enum import Enum
 from pydantic import BaseModel
 from typing import Annotated, Any, Literal
-from fastapi import FastAPI, Query, Path, Body
+from fastapi import FastAPI, Query, Path, Body, Cookie, Header
 from pydantic import AfterValidator, Field, HttpUrl
 from uuid import UUID
 from datetime import datetime, time, timedelta
@@ -15,6 +15,12 @@ data = {
     "imdb-tt0371724": "The Hitchhiker's Guide to the Galaxy",
     "isbn-9781439512982": "Isaac Asimov: The Complete Stories, Vol. 2",
 }
+
+class Cookies(BaseModel):
+    model_config = {"extra": "forbid"}
+    session_id: str
+    fatebook_tracker: str | None = None
+    googall_tracker: str | None = None
 
 # declare your data model as a class that inherits from BaseModel
 
@@ -285,3 +291,17 @@ async def read_items(
         "start_process": start_process,
         "duration": duration,
     }
+
+# @app.get("/items/")
+# async def read_items(ads_id: Annotated[str | None, Cookie()] = None):
+#     return {"ads_id": ads_id}
+
+# @app.get("/items/")
+# async def read_items(
+#     strange_header: Annotated[str | None, Header(convert_underscores=False)] = None,
+# ):
+#     return {"strange_header": strange_header}
+
+@app.get("/items/")
+async def read_items(cookies: Annotated[Cookies, Cookie()]):
+    return cookies
