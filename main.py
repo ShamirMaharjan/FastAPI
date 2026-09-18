@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from enum import Enum
 from pydantic import BaseModel
 from typing import Annotated, Any, Literal
-from fastapi import FastAPI, Query, Path, Body, Cookie, Header
+from fastapi import FastAPI, Query, Path, Body, Cookie, Header, Response
+from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import AfterValidator, Field, HttpUrl
 from uuid import UUID
 from datetime import datetime, time, timedelta
@@ -15,6 +16,23 @@ data = {
     "imdb-tt0371724": "The Hitchhiker's Guide to the Galaxy",
     "isbn-9781439512982": "Isaac Asimov: The Complete Stories, Vol. 2",
 }
+
+
+class BaseUser(BaseModel):
+    email: str
+    username: str
+
+class UserIn(BaseUser):
+    password: str
+
+# class UserIn(BaseModel):
+#     email: str
+#     password: str
+#     username: str
+
+# class UserOut(BaseModel):
+#     email: str
+#     username: str
 
 class Cookies(BaseModel):
     model_config = {"extra": "forbid"}
@@ -53,6 +71,13 @@ class Item(BaseModel):
             ]
         }
     }
+
+
+items = {
+    "foo": {"name": "Foo", "price": 50.2},
+    "bar": {"name": "Bar", "description": "The bartenders", "price": 62, "tax": 20.2},
+    "baz": {"name": "Baz", "description": None, "price": 50.2, "tax": 10.5, "tags": []},
+}
 
 
 class FilterParams(BaseModel):
@@ -139,9 +164,9 @@ async def get_model(model_name: ModelName):
 
     return {"model_name": model_name, "message": "Have some residuals"}
 
-@app.post("/items/")
-async def create_item(item: Item):
-    item_dict = item.model_dump()
+# @app.post("/items/")
+# async def create_item(item: Item):
+#     item_dict = item.model_dump()
 
     if item.tax is not None:
         price_with_tax = item.price + item.tax
@@ -272,25 +297,25 @@ class User(BaseModel):
 #     results = {"item_id": item_id, "item": item}
 #     return results
 
-@app.put("/items/{item_id}")
-async def read_items(
-    item_id: UUID,
-    start_datetime: Annotated[datetime, Body()],
-    end_datetime: Annotated[datetime, Body()],
-    process_after: Annotated[timedelta, Body()],
-    repeat_at: Annotated[time | None, Body()] = None,
-):
-    start_process = start_datetime + process_after
-    duration = end_datetime - start_process
-    return {
-        "item_id": item_id,
-        "start_datetime": start_datetime,
-        "end_datetime": end_datetime,
-        "process_after": process_after,
-        "repeat_at": repeat_at,
-        "start_process": start_process,
-        "duration": duration,
-    }
+# @app.put("/items/{item_id}")
+# async def read_items(
+#     item_id: UUID,
+#     start_datetime: Annotated[datetime, Body()],
+#     end_datetime: Annotated[datetime, Body()],
+#     process_after: Annotated[timedelta, Body()],
+#     repeat_at: Annotated[time | None, Body()] = None,
+# ):
+#     start_process = start_datetime + process_after
+#     duration = end_datetime - start_process
+#     return {
+#         "item_id": item_id,
+#         "start_datetime": start_datetime,
+#         "end_datetime": end_datetime,
+#         "process_after": process_after,
+#         "repeat_at": repeat_at,
+#         "start_process": start_process,
+#         "duration": duration,
+#     }
 
 # @app.get("/items/")
 # async def read_items(ads_id: Annotated[str | None, Cookie()] = None):
@@ -302,6 +327,77 @@ async def read_items(
 # ):
 #     return {"strange_header": strange_header}
 
-@app.get("/items/")
-async def read_items(cookies: Annotated[Cookies, Cookie()]):
-    return cookies
+# @app.get("/items/")
+# async def read_items(cookies: Annotated[Cookies, Cookie()]):
+#     return cookies
+
+@app.post("/items/")
+async def create_item(item: Item) -> Item:
+    return item
+
+# @app.get("/items/")
+# async def read_items() -> list[Item]:
+#     return [
+#         Item(name="Portal Gun", price=42.0),
+#         Item(name="Plumbus", price=32.0),
+#     ]
+
+# not convienient in most cases
+# @app.post("/user/", response_model=UserOut )
+# async def add_user(user: UserIn) -> Any:
+#     return user 
+
+@app.post("/user/")
+async def create_user(user: UserIn) -> BaseUser:
+    return user
+
+# @app.get("/portal")
+# async def get_portal(teleport: bool = False) -> Response:
+#     if teleport:
+#         return RedirectResponse(url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+#     return JSONResponse(content={"message": "Here's your interdimensional portal."})
+
+# The same would happen if you had something like a union between different types where one or more of them are not valid Pydantic types
+# this fails because the type annotation is not a Pydantic type and is not just a single Response class or subclass, 
+# it's a union (any of the two) between a Response and a dict.
+@app.get("/portal", response_model=None) # it will casue error in response model is removed 
+async def get_portal(teleport: bool = False) -> Response | dict:
+    if teleport:
+        return RedirectResponse(url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    return {"message": "Here's your interdimensional portal."}
+
+# remove the value which as unset and have default value none
+# @app.get("/items/{item_id}", response_model=Item, response_model_exclude_unset=True)
+# async def read_item(item_id: str):
+#     return items[item_id]
+
+class BaseItem(BaseModel):
+    description: str
+    type: str
+
+
+class CarItem(BaseItem):
+    type: str = "car"
+
+
+class PlaneItem(BaseItem):
+    type: str = "plane"
+    size: int
+
+
+items = {
+    "item1": {"description": "All my friends drive a low rider", "type": "car"},
+    "item2": {
+        "description": "Music is my aeroplane, it's my aeroplane",
+        "type": "plane",
+        "size": 5,
+    },
+}
+
+@app.get("/keyword-weights/", response_model=dict[str, float])
+async def read_keyword_weights():
+    return {"foo": 2.3, "bar": 3.4}
+
+@app.get("/items/{item_id}", response_model=PlaneItem | CarItem)
+async def read_item(item_id: str):
+    return items[item_id]
