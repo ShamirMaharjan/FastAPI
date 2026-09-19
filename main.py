@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from enum import Enum
 from pydantic import BaseModel
 from typing import Annotated, Any, Literal
-from fastapi import FastAPI, Query, Path, Body, Cookie, Header, Response
+from fastapi import FastAPI, Query, Path, Body, Cookie, Header, Response, status, Form, File, UploadFile
 from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import AfterValidator, Field, HttpUrl
 from uuid import UUID
@@ -331,9 +331,9 @@ class User(BaseModel):
 # async def read_items(cookies: Annotated[Cookies, Cookie()]):
 #     return cookies
 
-@app.post("/items/")
-async def create_item(item: Item) -> Item:
-    return item
+# @app.post("/items/")
+# async def create_item(item: Item) -> Item:
+#     return item
 
 # @app.get("/items/")
 # async def read_items() -> list[Item]:
@@ -347,9 +347,9 @@ async def create_item(item: Item) -> Item:
 # async def add_user(user: UserIn) -> Any:
 #     return user 
 
-@app.post("/user/")
-async def create_user(user: UserIn) -> BaseUser:
-    return user
+# @app.post("/user/")
+# async def create_user(user: UserIn) -> BaseUser:
+#     return user
 
 # @app.get("/portal")
 # async def get_portal(teleport: bool = False) -> Response:
@@ -401,3 +401,59 @@ async def read_keyword_weights():
 @app.get("/items/{item_id}", response_model=PlaneItem | CarItem)
 async def read_item(item_id: str):
     return items[item_id]
+
+# HTTP status code
+# 100 - 199 = Information, response cannot have body
+# 200 - 299 = Successful
+# 300 - 399 = Redirection
+# 400 - 499 = Client error
+# 500 - 599 = Server error
+
+@app.post("/items/", status_code=status.HTTP_201_CREATED)
+async def create_item(name: str):
+    return {"name": name}
+
+# @app.post("/login/")
+# async def login(username: Annotated[str, Form()], password: Annotated[str, Form()]):
+#     return {"username": username}
+
+class FormData(BaseModel):
+    model_config = {"extra": "forbid"} # If a client tries to send some extra data, they will receive an error response.
+    username: str
+    password: str
+
+@app.post("/login/")
+async def login(data: Annotated[FormData, Form()]):
+    return data
+
+# @app.post("/files/")
+# async def create_file(file: Annotated[bytes | None, File()] = None):
+#     if not file:
+#         return {"message": "No file sent"}
+#     else:
+#         return {"file_size": len(file)}
+
+
+# @app.post("/uploadfile/")
+# async def create_upload_file(file: UploadFile | None = None):
+#     if not file:
+#         return {"message": "No upload file sent"}
+#     else:
+#         return {"filename": file.filename}
+
+# multiple file upload with Additional metadata
+
+@app.post("/files/")
+async def create_files(
+    files: Annotated[list[bytes], File(description="Multiple files as bytes")],
+):
+    return {"file_sizes": [len(file) for file in files]}
+
+
+@app.post("/uploadfiles/")
+async def create_upload_files(
+    files: Annotated[
+        list[UploadFile], File(description="Multiple files as UploadFile")
+    ],
+):
+    return {"filenames": [file.filename for file in files]}
