@@ -3,7 +3,9 @@ from fastapi import FastAPI
 from enum import Enum
 from pydantic import BaseModel
 from typing import Annotated, Any, Literal
-from fastapi import FastAPI, Query, Path, Body, Cookie, Header, Response, status, Form, File, UploadFile
+from fastapi import FastAPI, Query, Path, Body, Cookie, Header, Response, status, Form, File, UploadFile, Request
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import AfterValidator, Field, HttpUrl
 from uuid import UUID
@@ -443,17 +445,83 @@ async def login(data: Annotated[FormData, Form()]):
 
 # multiple file upload with Additional metadata
 
-@app.post("/files/")
-async def create_files(
-    files: Annotated[list[bytes], File(description="Multiple files as bytes")],
-):
-    return {"file_sizes": [len(file) for file in files]}
+# @app.post("/files/")
+# async def create_files(
+#     files: Annotated[list[bytes], File(description="Multiple files as bytes")],
+# ):
+#     return {"file_sizes": [len(file) for file in files]}
 
 
-@app.post("/uploadfiles/")
-async def create_upload_files(
-    files: Annotated[
-        list[UploadFile], File(description="Multiple files as UploadFile")
-    ],
-):
-    return {"filenames": [file.filename for file in files]}
+# @app.post("/uploadfiles/")
+# async def create_upload_files(
+#     files: Annotated[
+#         list[UploadFile], File(description="Multiple files as UploadFile")
+#     ],
+# ):
+#     return {"filenames": [file.filename for file in files]}
+
+# @app.post("/files")
+# async def create_files(
+#     file: Annotated[bytes, File()],
+#     token: Annotated[str, Form()],
+#     uploadFile: Annotated[UploadFile, File()]
+# ):
+#     return{
+#         "filesize": len(file),
+#         "Tokwn": token,
+#         "File_Name": uploadFile.content_type
+#     }
+
+class UnicornException(Exception):
+    def __init__(self, name: str):
+        self.name = name
+
+@app.exception_handler(UnicornException)
+async def unicorn_exceptoin_handler(request: Request, exc: UnicornException ):
+    return JSONResponse(
+        status_code= 418,
+        content={"message": f"Oops! {exc.name} did something. There goes a rainbow..."},
+    )
+
+@app.get("/unicorns/{name}")
+async def read_unicorn(name: str):
+    if name == "yolo":
+        raise UnicornException(name=name)
+    return {"unicorn_name": name}
+
+# @app.post("/items/", status_code=status.HTTP_201_CREATED)
+# async def create_item(item: Item) -> Item:
+#     return item
+
+
+@app.get("/items/", tags=["items"])
+async def read_items():
+    return [{"name": "Foo", "price": 42}]
+
+
+@app.get("/users/", tags=["users"])
+async def read_users():
+    return [{"username": "johndoe"}]
+
+
+@app.get("/elements/", tags=["items"], deprecated=True)
+async def read_elements():
+    return [{"item_id": "Foo"}]
+
+# datetime objects, as those are not compatible with JSON.
+
+# So, a datetime object would have to be converted to a str containing the data in ISO format.
+
+# The same way, this database wouldn't receive a Pydantic model (an object with attributes), only a dict.
+
+fake_db ={}
+
+class Item(BaseModel):
+    title: str
+    timestamp: datetime
+    description: str | None = None
+
+@app.put("/items/{id}")
+def update_item(id: str, item: Item):
+    json_compatible_item_data = jsonable_encoder(item)
+    fake_db[id] = json_compatible_item_data
